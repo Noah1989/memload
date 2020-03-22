@@ -41,19 +41,22 @@ unsigned char uart_getc()
 
 unsigned int address = 0;
 
-void print_hex(unsigned char byte)
+void print_nibble(unsigned char nibble)
 {
-  char buffer[3];
-  if (byte < 16)
+  if (nibble<10)
   {
-    buffer[0] = '0';
-    itoa(byte, &buffer[1], 16);
+    uart_putc(nibble+'0');
   }
   else
   {
-    itoa(byte, buffer, 16);
+    uart_putc(nibble-10+'a');
   }
-  uart_puts(buffer);
+}
+
+void print_hex(unsigned char byte)
+{
+  print_nibble((byte&0xF0)>>4);
+  print_nibble( byte&0x0F    );
 }
 
 char input_hex_digit()
@@ -64,16 +67,31 @@ char input_hex_digit()
     c = tolower(uart_getc());
   } while (!((c>='0' && c<='9') || ((c>='a' && c<='f'))));
   uart_putc(c);
+  if(c>='0' && c<='9')
+  {
+    c=c-0x30;
+  }
+  else
+  {
+    switch(c)
+    {
+      case 'A': case 'a': c=10; break;
+      case 'B': case 'b': c=11; break;
+      case 'C': case 'c': c=12; break;
+      case 'D': case 'd': c=13; break;
+      case 'E': case 'e': c=14; break;
+      case 'F': case 'f': c=15; break;
+      default: c=0;
+    }
+  }
   return c;
 }
 
 unsigned char input_hex_byte()
 {
-  char buffer[3];
-  buffer[0] = input_hex_digit();
-  buffer[1] = input_hex_digit();
-  buffer[2] = 0;
-  return strtol(buffer, NULL, 16);
+  unsigned char upper = input_hex_digit();
+  unsigned char lower = input_hex_digit();
+  return (upper<<4) + lower;
 }
 
 unsigned int input_hex_word()
@@ -83,12 +101,30 @@ unsigned int input_hex_word()
   return (upper<<8) + lower;
 }
 
+void set_address(int addr)
+{
+  DATA_DDR = 0xff;
+  SELECT = ADDR_H;
+//  _delay_us(1);
+  DATA_OUT = addr >> 8;
+//  _delay_us(1);
+  SELECT = ADDR_L;
+//  _delay_us(1);
+  DATA_OUT = addr;
+//  _delay_us(1);
+  SELECT = NONE;
+//  _delay_us(1);
+  DATA_DDR = 0x00;
+  DATA_OUT = 0xFF;
+  address = addr;
+}
+
 void read_byte()
 {
   DATA_DDR = 0x00;
-  DATA_OUT = 0x00;
+  DATA_OUT = 0xFF;
   SELECT = READ;
-  _delay_us(10);
+  _delay_us(1);
   unsigned char byte = DATA_IN;
   SELECT = NONE;
   print_hex(byte);
@@ -100,27 +136,14 @@ void write_byte(unsigned char byte)
   DATA_DDR = 0xff;
   SELECT = WRITE;
   DATA_OUT = byte;
-  _delay_us(10);
+//  _delay_us(1);
   SELECT = NONE;
+//  _delay_us(1);
   DATA_DDR = 0x00;
-  DATA_OUT = 0x00;
+  DATA_OUT = 0xFF;
   set_address(address+1);
 }
 
-void set_address(int addr)
-{
-  DATA_DDR = 0xff;
-  SELECT = ADDR_H;
-  DATA_OUT = addr >> 8;
-  _delay_us(10);
-  SELECT = ADDR_L;
-  DATA_OUT = addr;
-  _delay_us(10);
-  SELECT = NONE;
-  DATA_DDR = 0x00;
-  DATA_OUT = 0x00;
-  address = addr;
-}
 
 void get_address()
 {
@@ -150,25 +173,21 @@ void main()
       case 'r':
         uart_putc('R');
         read_byte();
-        uart_puts("\r\n");
       break;
 
       case 'w':
         uart_putc('W');
         write_byte(input_hex_byte());
-        uart_puts("\r\n");
       break;
 
       case 'a':
         uart_putc('A');
         set_address(input_hex_word());
-        uart_puts("\r\n");
       break;
 
       case '?':
         uart_putc('A');
         get_address();
-        uart_puts("\r\n");
       break;
     }
   }
