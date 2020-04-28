@@ -5,7 +5,7 @@ SET(CMAKE_SYSTEM_NAME Generic)
 PROJECT(memload)
 
 SET(DEVICE "attiny2313")
-SET(FREQ "1000000")
+SET(FREQ "10000000")
 SET(BAUD "62500")
 
 #============================================================================================
